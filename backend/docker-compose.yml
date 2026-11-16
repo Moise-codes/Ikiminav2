@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ikimina
+      POSTGRES_USER: ikimina
+      POSTGRES_PASSWORD: ikimina
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ikimina -d ikimina"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ikimina:ikimina@postgres:5432/ikimina
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: local
+      DEBUG: "1"
+      SMS_PROVIDER: fake
+      LOG_LEVEL: DEBUG
+      SECRET_KEY: dev-secret-do-not-use-in-production
+      JWT_SECRET: dev-jwt-secret-do-not-use-in-production
+      OTP_HMAC_SECRET: dev-otp-secret-do-not-use-in-production
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ikimina:ikimina@postgres:5432/ikimina
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: local
+      SMS_PROVIDER: fake
+      LOG_LEVEL: DEBUG
+      SECRET_KEY: dev-secret-do-not-use-in-production
+      JWT_SECRET: dev-jwt-secret-do-not-use-in-production
+      OTP_HMAC_SECRET: dev-otp-secret-do-not-use-in-production
+    command: ["python", "worker/main.py"]
+
+volumes:
+  pgdata:

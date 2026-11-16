@@ -1,0 +1,29 @@
+# Copy to docker-compose.override.yml for local tweaks.
+# This file is gitignored so you never commit local secrets.
+
+services:
+  api:
+    environment:
+      - ENVIRONMENT=local
+      - DEBUG=1
+      - LOG_LEVEL=DEBUG
+      - SMS_PROVIDER=fake
+      # MTN sandbox credentials (get from MTN Developer Portal)
+      - MTN_ENVIRONMENT=sandbox
+      - MTN_COLLECTION_BASE_URL=https://sandbox.momodeveloper.mtn.com/collection
+      - MTN_DISBURSEMENT_BASE_URL=https://sandbox.momodeveloper.mtn.com/disbursement
+      - MTN_COLLECTION_API_USER=your-collection-api-user
+      - MTN_COLLECTION_API_KEY=your-collection-api-key
+      - MTN_DISBURSEMENT_API_USER=your-disbursement-api-user
+      - MTN_DISBURSEMENT_API_KEY=your-disbursement-api-key
+      - MTN_WEBHOOK_SECRET=your-webhook-secret
+      - MTN_CALLBACK_BASE_URL=http://localhost:8000
+    ports:
+      - "8000:8000"
+
+  worker:
+    environment:
+      - ENVIRONMENT=local
+      - LOG_LEVEL=DEBUG
+      - SMS_PROVIDER=fake
+      - MTN_ENVIRONMENT=sandbox
