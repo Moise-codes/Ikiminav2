@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_sessionmaker
+from app.integrations.email.resend import ResendEmailSender
 from app.integrations.sms.sender import build_sms_sender
 from app.integrations.sms.templates import render
 from app.models.platform import OutboxMessage
@@ -29,7 +30,8 @@ class OutboxWorker:
     def __init__(self, poll_interval_seconds: float = 2.0) -> None:
         self.poll_interval = poll_interval_seconds
         self._running = False
-        self.sender = build_sms_sender()
+        self.sms_sender = build_sms_sender()
+        self.email_sender = ResendEmailSender() if settings.email_provider == "resend" else None
 
     async def run(self) -> None:
         """Run until cancelled."""
@@ -55,7 +57,10 @@ class OutboxWorker:
                     logger.exception("worker_batch_failed", error=str(exc)[:200])
                 await asyncio.wait_for(stop.wait(), timeout=self.poll_interval)
         finally:
-            await self.sender.aclose() if hasattr(self.sender, "aclose") else None
+            if hasattr(self.sms_sender, "aclose"):
+                await self.sms_sender.aclose()
+            if self.email_sender and hasattr(self.email_sender, "aclose"):
+                await self.email_sender.aclose()
             logger.info("worker_stopped")
 
     async def _process_batch(self) -> None:
@@ -77,10 +82,20 @@ class OutboxWorker:
     async def _deliver(self, session: AsyncSession, message: OutboxMessage) -> None:
         try:
             body = render(message.template, "en", message.payload)
+
             if message.channel == "sms":
-                result = await self.sender.send(to=message.recipient, message=body)
-            else:  # pragma: no cover - email adapter not wired yet
-                result = None  # type: ignore[assignment]
+                result = await self.sms_sender.send(to=message.recipient, message=body)
+            elif message.channel == "email" and self.email_sender:
+                # For email, we need to parse subject and body from the template
+                # For now, use the body as both subject and text
+                # In production, you'd have proper email templates
+                result = await self.email_sender.send(
+                    to=message.recipient,
+                    subject=message.template.replace("_", " ").title(),
+                    text=body,
+                )
+            else:
+                result = None
 
             if result and result.success:
                 message.status = "sent"

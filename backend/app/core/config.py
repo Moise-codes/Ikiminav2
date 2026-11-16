@@ -69,9 +69,9 @@ class Settings(BaseSettings):
     # --- sms --------------------------------------------------------------
     sms_provider: Literal["fake", "africastalking", "pindo", "twilio"] = "fake"
     sms_sender_id: str = "IKIMINA"
-    sms_api_key: str | None = None
-    sms_api_secret: str | None = None
-    sms_base_url: str | None = None
+    sms_api_key: str | None = None  # Africa's Talking username
+    sms_api_secret: str | None = None  # Africa's Talking API key
+    sms_base_url: str | None = None  # Optional override
     sms_timeout_seconds: int = Field(default=15, ge=1, le=60)
 
     # --- mtn mobile money -------------------------------------------------
@@ -86,13 +86,14 @@ class Settings(BaseSettings):
     mtn_callback_base_url: str = "http://localhost:8000"
 
     # --- email (transactional) -------------------------------------------
-    email_provider: Literal["fake", "smtp"] = "fake"
+    email_provider: Literal["fake", "smtp", "resend"] = "fake"
     smtp_host: str | None = None
     smtp_port: int = Field(default=587, ge=1, le=65535)
     smtp_username: str | None = None
     smtp_password: str | None = None
     smtp_from: str = "no-reply@ikimina.rw"
     email_from: str = "no-reply@ikimina.rw"
+    resend_api_key: str | None = None
     public_base_url: str = "http://localhost:8000"
 
     # --- rate limiting ----------------------------------------------------

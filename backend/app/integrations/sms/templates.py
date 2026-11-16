@@ -59,8 +59,34 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "fr": "Ikimina: vous avez ete ajoute au groupe d'epargne {group}.",
     },
     "email_verification": {
+        "rw": "Emeza aderesi yawe ya email kuri Ikimina: {link}",
         "en": "Confirm your email address for Ikimina: {link}",
         "fr": "Confirmez votre adresse email pour Ikimina: {link}",
+    },
+    "contribution_payment_received": {
+        "rw": "Ikimina: igikorwa cyawe cya {amount} RWF cyakiriwe. Urakoze.",
+        "en": "Ikimina: your payment of {amount} RWF has been received. Thank you.",
+        "fr": "Ikimina: votre paiement de {amount} RWF a été reçu. Merci.",
+    },
+    "loan_disbursed": {
+        "rw": "Ikimina: ingomba yawe y'amafaranga {amount} RWF yatangajwe. Murakoze.",
+        "en": "Ikimina: your loan of {amount} RWF has been disbursed. Thank you.",
+        "fr": "Ikimina: votre prêt de {amount} RWF a été décaissé. Merci.",
+    },
+    "repayment_received": {
+        "rw": "Ikimina: umusanzu w'amafaranga {amount} RWF wakiriwe. Urakoze.",
+        "en": "Ikimina: your repayment of {amount} RWF has been received. Thank you.",
+        "fr": "Ikimina: votre remboursement de {amount} RWF a été reçu. Merci.",
+    },
+    "member_joined": {
+        "rw": "Ikimina: {name} yinjiye mu mukoperative {group}.",
+        "en": "Ikimina: {name} has joined the savings group {group}.",
+        "fr": "Ikimina: {name} a rejoint le groupe d'épargne {group}.",
+    },
+    "member_left": {
+        "rw": "Ikimina: {name} arasohotse mu mukoperative {group}.",
+        "en": "Ikimina: {name} has left the savings group {group}.",
+        "fr": "Ikimina: {name} a quitté le groupe d'épargne {group}.",
     },
 }
 

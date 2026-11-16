@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.core.config import settings
+from app.integrations.sms.africastalking import AfricaTalkingSmsSender
 
 logger = logging.getLogger(__name__)
 
@@ -108,4 +109,8 @@ def build_sms_sender() -> SmsSender:
     """Select the sender named in the configuration."""
     if settings.sms_provider == "fake":
         return FakeSmsSender()
-    return HttpSmsSender()
+    elif settings.sms_provider == "africastalking":
+        return AfricaTalkingSmsSender()
+    else:
+        # Fallback to generic HTTP sender for other providers
+        return HttpSmsSender()
