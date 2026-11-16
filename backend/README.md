@@ -1,10 +1,10 @@
-# Ikimina Platform — Backend (v2)
+# Itsinda Platform — Backend (v2)
 
-Production backend API for Rwandan savings groups (ibimina / ikimina). Records
+Production backend API for Rwandan savings groups (ibimina / itsinda). Records
 members, roles, contributions in RWF, loans and repayments for groups in
 Rwanda. Phone-first identity, immutable ledger, database-enforced constraints.
 
-Built per the **Ikimina Platform v2 Design Document** (SRS, architecture, data
+Built per the **Itsinda Platform v2 Design Document** (SRS, architecture, data
 dictionary) — not derived from any third-party product.
 
 ## Stack
@@ -56,9 +56,9 @@ backend/
 ## Run locally
 
 ```bash
-# From the folder that will contain Ikiminav2
-git clone <your-repo> Ikiminav2   # or copy this tree into ~/Ikiminav2/backend
-cd Ikiminav2/backend
+# From the folder that will contain Itsinda
+git clone <your-repo> Itsinda   # or copy this tree into ~/Itsinda/backend
+cd Itsinda/backend
 cp .env.example .env
 # edit .env if you want real SMS/email; defaults use the fake sender
 

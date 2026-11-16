@@ -1,6 +1,6 @@
 """MTN Mobile Money API client.
 
-Covers both MoM APIs used by Ikimina:
+Covers both MoM APIs used by Itsinda:
 
 * Collection API (RequestToPay) — a customer pays the group from their wallet.
 * Disbursement API (Transfer) — the group pays out to a member's wallet.
@@ -41,7 +41,7 @@ class MtnRequestToPay:
     phone: str  # E.164, e.g. +250788123456
     amount: int  # RWF
     currency: str = "RWF"
-    payer_message: str = "Ikimina contribution"
+    payer_message: str = "Itsinda contribution"
     payee_note: str = "Savings group payment"
 
 
@@ -51,7 +51,7 @@ class MtnTransfer:
     phone: str  # E.164
     amount: int  # RWF
     currency: str = "RWF"
-    payer_message: str = "Ikimina payout"
+    payer_message: str = "Itsinda payout"
     payee_note: str = "Savings group payout"
 
 

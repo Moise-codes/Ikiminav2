@@ -1,7 +1,7 @@
 [project]
-name = "ikimina-backend"
+name = "itsinda-backend"
 version = "2.0.0"
-description = "Production backend API for Rwandan savings groups (ikimina)."
+description = "Production backend API for Rwandan savings groups (itsinda)."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi==0.115.0",

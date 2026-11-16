@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Install the Ikiminav2 backend tree into ~/Ikiminav2/backend
+# Install the Itsindav2 backend tree into ~/Itsindav2/backend
 set -euo pipefail
 
-TARGET="${HOME}/Ikiminav2"
+TARGET="${HOME}/Itsindav2"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/backend"
 
-echo "=== Ikiminav2 installer ==="
+echo "=== Itsindav2 installer ==="
 echo "Target:  ${TARGET}"
 echo "Source:  ${SOURCE_DIR}"
 

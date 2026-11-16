@@ -124,7 +124,7 @@ async def verify_phone(
             expires_in=settings.access_token_ttl_minutes * 60,
             refresh_expires_in=settings.refresh_token_ttl_days * 24 * 3600,
         ),
-        message="Phone verified. Welcome to Ikimina.",
+        message="Phone verified. Welcome to Itsinda.",
     )
 
 

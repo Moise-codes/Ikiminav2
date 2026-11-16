@@ -32,7 +32,7 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version="2.0.0",
         description=(
-            "Production backend API for Rwandan savings groups (ibimina / ikimina). "
+            "Production backend API for Rwandan savings groups (ibimina / itsinda). "
             "Phone-first identity, immutable RWF ledger, MTN Mobile Money "
             "send/receive, database-enforced constraints."
         ),

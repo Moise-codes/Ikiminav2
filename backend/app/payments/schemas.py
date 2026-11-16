@@ -16,7 +16,7 @@ class MtnRequestToPayRequest(BaseModel):
     membership_id: uuid.UUID
     amount_rwf: int = Field(ge=100, le=100_000_000)
     payer_phone: str
-    payer_message: str = Field(default="Ikimina contribution", max_length=200)
+    payer_message: str = Field(default="Itsinda contribution", max_length=200)
     payee_note: str = Field(default="Savings group payment", max_length=200)
     idempotency_key: str | None = Field(default=None, max_length=64)
 
@@ -29,7 +29,7 @@ class MtnTransferRequest(BaseModel):
     membership_id: uuid.UUID
     amount_rwf: int = Field(ge=100, le=100_000_000)
     payee_phone: str
-    payer_message: str = Field(default="Ikimina payout", max_length=200)
+    payer_message: str = Field(default="Itsinda payout", max_length=200)
     payee_note: str = Field(default="Savings group payout", max_length=200)
     idempotency_key: str | None = Field(default=None, max_length=64)
 

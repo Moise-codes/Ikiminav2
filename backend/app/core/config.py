@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     )
 
     # --- application -----------------------------------------------------
-    app_name: str = "Ikimina API"
+    app_name: str = "Itsinda API"
     environment: Environment = "local"
     debug: bool = False
     api_prefix: str = "/api/v1"
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     # --- database ---------------------------------------------------------
     database_url: str = Field(
-        default="postgresql+asyncpg://ikimina:ikimina@localhost:5432/ikimina"
+        default="postgresql+asyncpg://itsinda:itsinda@localhost:5432/itsinda"
     )
     db_pool_size: int = Field(default=10, ge=1, le=100)
     db_max_overflow: int = Field(default=20, ge=0, le=200)
@@ -68,7 +68,7 @@ class Settings(BaseSettings):
 
     # --- sms --------------------------------------------------------------
     sms_provider: Literal["fake", "africastalking", "pindo", "twilio"] = "fake"
-    sms_sender_id: str = "IKIMINA"
+    sms_sender_id: str = "ITSINDA"
     sms_api_key: str | None = None  # Africa's Talking username
     sms_api_secret: str | None = None  # Africa's Talking API key
     sms_base_url: str | None = None  # Optional override
@@ -91,8 +91,8 @@ class Settings(BaseSettings):
     smtp_port: int = Field(default=587, ge=1, le=65535)
     smtp_username: str | None = None
     smtp_password: str | None = None
-    smtp_from: str = "no-reply@ikimina.rw"
-    email_from: str = "no-reply@ikimina.rw"
+    smtp_from: str = "no-reply@itsinda.rw"
+    email_from: str = "no-reply@itsinda.rw"
     resend_api_key: str | None = None
     public_base_url: str = "http://localhost:8000"
 

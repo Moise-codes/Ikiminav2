@@ -1,6 +1,6 @@
-# Production Deployment — Ikimina Backend v2
+# Production Deployment — Itsinda Backend v2
 
-This guide covers deploying the Ikimina backend to production for use by
+This guide covers deploying the Itsinda backend to production for use by
 savings groups (ibimina) in Rwanda.
 
 ## 1. Provision infrastructure
@@ -27,7 +27,7 @@ Copy `.env.example` to `.env` and set every value:
 | `DATABASE_URL` | `postgresql+asyncpg://user:pass@host:5432/db` with `sslmode=require` |
 | `REDIS_URL` | `rediss://` with TLS and a password |
 | `ALLOWED_ORIGINS` | your frontend domain(s) only |
-| `PUBLIC_BASE_URL` | `https://api.ikimina.rw` |
+| `PUBLIC_BASE_URL` | `https://api.itsinda.rw` |
 | `MTN_*` | real MTN MoM API keys (collection + disbursement) |
 | `MTN_ENVIRONMENT` | `production` |
 | `MTN_WEBHOOK_SECRET` | shared with MTN for callback signature verification |
@@ -42,8 +42,8 @@ secrets.
 2. Create Collection and Disbursement API users and keys for the Rwanda
    country group.
 3. Configure your callback URL:
-   `https://api.ikimina.rw/webhooks/mtn/collection`
-   `https://api.ikimina.rw/webhooks/mtn/disbursement`
+   `https://api.itsinda.rw/webhooks/mtn/collection`
+   `https://api.itsinda.rw/webhooks/mtn/disbursement`
 4. Set `MTN_ENVIRONMENT=production` and the production base URLs:
    `https://momodeveloper.mtn.com/collection`
    `https://momodeveloper.mtn.com/disbursement`

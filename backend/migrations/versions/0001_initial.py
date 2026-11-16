@@ -1,4 +1,4 @@
-"""Initial schema for Ikimina Platform v2.
+"""Initial schema for Itsinda Platform v2.
 
 Creates all 14 core tables plus platform support tables with every constraint,
 index and trigger from the design document. This is the single source of truth

@@ -1,6 +1,6 @@
-# Ikimina Backend - Production Credentials Guide
+# Itsinda Backend - Production Credentials Guide
 
-This guide will help you obtain the necessary credentials for production deployment of the Ikimina backend.
+This guide will help you obtain the necessary credentials for production deployment of the Itsinda backend.
 
 ## Table of Contents
 1. [Africa's Talking (SMS Provider)](#1-africas-talking-sms-provider)
@@ -29,7 +29,7 @@ This guide will help you obtain the necessary credentials for production deploym
    - Email address
    - Password
    - Phone number (Rwandan number recommended)
-   - Company name: "Ikimina"
+   - Company name: "Itsinda"
    - Country: Rwanda
 
 #### Step 2: Verify Email
@@ -41,7 +41,7 @@ This guide will help you obtain the necessary credentials for production deploym
 1. Go to: https://account.africastalking.com/apps
 2. Click "Create New App"
 3. Fill in app details:
-   - App name: "Ikimina Backend"
+   - App name: "Itsinda Backend"
    - App description: "SMS notifications for savings group platform"
    - Select: "SMS"
 4. Click "Create"
@@ -63,7 +63,7 @@ This guide will help you obtain the necessary credentials for production deploym
 #### Step 6: Configure Sender ID
 1. Go to: https://account.africastalking.com/apps/[your-app-id]/settings
 2. Under "Sender ID", you can register a custom sender ID
-3. For now, use "IKIMINA" as sender ID
+3. For now, use "ITSINDA" as sender ID
 4. Custom sender IDs require approval (1-2 business days)
 
 #### Step 7: Test SMS
@@ -74,7 +74,7 @@ This guide will help you obtain the necessary credentials for production deploym
 ### Credentials Needed for .env:
 ```bash
 SMS_PROVIDER=africastalking
-SMS_SENDER_ID=IKIMINA
+SMS_SENDER_ID=ITSINDA
 SMS_API_KEY=your_africastalking_username
 SMS_API_SECRET=your_africastalking_api_key
 SMS_BASE_URL=  # Leave empty, we have the default
@@ -118,7 +118,7 @@ SMS_TIMEOUT_SECONDS=15
 1. After logging in, go to: https://resend.com/api-keys
 2. Click "Create API Key"
 3. Fill in key details:
-   - Name: "Ikimina Production"
+   - Name: "Itsinda Production"
    - Permission: "Full access" (or "Sending access" if available)
 4. Click "Create"
 5. **IMPORTANT**: Copy the API key immediately - it won't be shown again!
@@ -126,7 +126,7 @@ SMS_TIMEOUT_SECONDS=15
 #### Step 3: Verify Domain (Optional but Recommended)
 1. Go to: https://resend.com/domains
 2. Click "Add Domain"
-3. Enter your domain: `ikimina.rw` (or your domain)
+3. Enter your domain: `itsinda.rw` (or your domain)
 4. Follow DNS configuration instructions:
    - Add TXT record for verification
    - Add MX records for sending
@@ -142,8 +142,8 @@ SMS_TIMEOUT_SECONDS=15
 ```bash
 EMAIL_PROVIDER=resend
 RESEND_API_KEY=re_your_resend_api_key
-EMAIL_FROM=no-reply@ikimina.rw  # Or your verified domain
-PUBLIC_BASE_URL=https://ikimina.rw  # Your production URL
+EMAIL_FROM=no-reply@itsinda.rw  # Or your verified domain
+PUBLIC_BASE_URL=https://itsinda.rw  # Your production URL
 ```
 
 ### Pricing Information:
@@ -178,14 +178,14 @@ Without domain verification, emails will come from `onboarding@resend.dev` which
 3. Create a developer account:
    - Email address
    - Password
-   - Company name: "Ikimina"
+   - Company name: "Itsinda"
    - Phone number (MTN number recommended)
 
 #### Step 2: Create Application
 1. After logging in, go to "My Apps"
 2. Click "Create New App"
 3. Fill in app details:
-   - App name: "Ikimina Platform"
+   - App name: "Itsinda Platform"
    - App description: "Savings group platform with mobile money integration"
    - Select products:
      - ✅ Collection (Request to Pay)
@@ -212,8 +212,8 @@ Without domain verification, emails will come from `onboarding@resend.dev` which
 #### Step 5: Configure Webhooks
 1. Go to "Webhooks" section
 2. Add webhook URLs:
-   - Collection webhook: `https://ikimina.rw/api/v1/webhooks/mtn/collection`
-   - Disbursement webhook: `https://ikimina.rw/api/v1/webhooks/mtn/disbursement`
+   - Collection webhook: `https://itsinda.rw/api/v1/webhooks/mtn/collection`
+   - Disbursement webhook: `https://itsinda.rw/api/v1/webhooks/mtn/disbursement`
 3. Set webhook secret (you'll generate this)
 4. Save configuration
 
@@ -247,7 +247,7 @@ MTN_COLLECTION_API_KEY=your_collection_api_key
 MTN_DISBURSEMENT_API_USER=your_disbursement_api_user
 MTN_DISBURSEMENT_API_KEY=your_disbursement_api_key
 MTN_WEBHOOK_SECRET=your_webhook_secret
-MTN_CALLBACK_BASE_URL=https://ikimina.rw
+MTN_CALLBACK_BASE_URL=https://itsinda.rw
 
 # Production (after approval)
 MTN_ENVIRONMENT=production
@@ -299,9 +299,9 @@ MTN_DISBURSEMENT_BASE_URL=https://momodeveloper.mtn.com/disbursement
    - Pricing: ~$8-12/year
 
 #### Recommended Domain:
-- `ikimina.rw` (Rwandan domain, local presence)
-- `ikimina.com` (international)
-- `ikimina.app` (tech-focused)
+- `itsinda.rw` (Rwandan domain, local presence)
+- `itsinda.com` (international)
+- `itsinda.app` (tech-focused)
 
 ### Hosting Options:
 
@@ -503,4 +503,4 @@ MTN_DISBURSEMENT_BASE_URL=https://momodeveloper.mtn.com/disbursement
 5. **Build frontend** - Once backend is production-ready
 6. **Launch** - Go live with real users
 
-Good luck with your Ikimina platform! 🚀
+Good luck with your Itsinda platform! 🚀

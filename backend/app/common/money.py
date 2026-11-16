@@ -1,6 +1,6 @@
 """Money helpers.
 
-All amounts in Ikimina are whole Rwandan francs held as integers. There is
+All amounts in Itsinda are whole Rwandan francs held as integers. There is
 no float in the money path anywhere: floats are rejected at the boundary and
 every arithmetic operation goes through these helpers so rounding happens in
 exactly one place.

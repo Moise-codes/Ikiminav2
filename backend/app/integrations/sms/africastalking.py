@@ -71,7 +71,7 @@ class AfricaTalkingSmsSender:
             "username": settings.sms_api_key,  # Africa's Talking uses username as API key
             "to": phone,
             "message": message,
-            "from": settings.sms_sender_id if settings.sms_sender_id else "IKIMINA",
+            "from": settings.sms_sender_id if settings.sms_sender_id else "ITSINDA",
         }
 
         # Prepare headers with API key
