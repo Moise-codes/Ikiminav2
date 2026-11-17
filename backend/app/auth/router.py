@@ -15,11 +15,13 @@ from app.auth.schemas import (
     AuthResponse,
     ChangePhoneConfirm,
     ChangePhoneRequest,
+    DeviceResponse,
     LoginRequest,
     LogoutRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
     RefreshRequest,
+    RegisterDeviceRequest,
     RegisterRequest,
     ResendOtpRequest,
     SessionInfo,
@@ -65,9 +67,14 @@ async def register(
     request: Request,
     db: DbSession,
 ) -> AuthResponse:
-    """Create an account and send a verification code.
+    """Create an account using a Rwandan mobile number.
 
-    The account exists but cannot be used until the phone is verified.
+    Only full name, phone, and password are required. Email is not
+    collected at registration — it can be added later from settings as an
+    optional account-recovery channel.
+
+    The account is created immediately but cannot be used until the phone
+    number is verified with the SMS code.
     """
     service = AuthService(db)
     notifications = NotificationService(db)
@@ -75,7 +82,6 @@ async def register(
         full_name=payload.full_name,
         phone_raw=payload.phone,
         password=payload.password,
-        email_raw=payload.email,
         preferred_language=payload.preferred_language,
         ip=_client_ip(request),
     )
@@ -88,7 +94,7 @@ async def register(
     return AuthResponse(
         user=UserProfile.model_validate(user),
         tokens=None,
-        message="Account created. Enter the code we sent to your phone.",
+        message="Account created. We sent a 6-digit code to your phone — enter it to activate your account.",
     )
 
 
@@ -124,7 +130,7 @@ async def verify_phone(
             expires_in=settings.access_token_ttl_minutes * 60,
             refresh_expires_in=settings.refresh_token_ttl_days * 24 * 3600,
         ),
-        message="Phone verified. Welcome to Itsinda.",
+        message="Phone verified. Welcome to Itsinda — your Ibimina, digitized.",
     )
 
 
@@ -186,7 +192,7 @@ async def login(
             expires_in=settings.access_token_ttl_minutes * 60,
             refresh_expires_in=settings.refresh_token_ttl_days * 24 * 3600,
         ),
-        message="Signed in.",
+        message="Signed in successfully.",
     )
 
 
@@ -386,3 +392,81 @@ async def update_me(
     )
     await db.commit()
     return UserProfile.model_validate(updated)
+
+
+# ---------------------------------------------------------------------------
+# Device token management (push notifications)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/devices",
+    response_model=DeviceResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a device for push notifications",
+)
+@rate_limit("devices.register", limit=20, window_seconds=3600)
+async def register_device(
+    payload: RegisterDeviceRequest,
+    request: Request,
+    user: CurrentUser,
+    db: DbSession,
+) -> DeviceResponse:
+    """Register or refresh an FCM / APNS token for the calling user.
+
+    Call this on every app start so stale tokens are refreshed automatically.
+    If the token already exists it is re-activated and the app version updated.
+    One user can have multiple active device tokens (phone + tablet + web).
+    """
+    from sqlalchemy import select
+    from app.models.identity import DeviceToken
+
+    existing = await db.scalar(
+        select(DeviceToken).where(DeviceToken.token == payload.token)
+    )
+    if existing is not None:
+        # Re-activate and update version if the token already exists
+        existing.is_active = True
+        existing.app_version = payload.app_version
+        existing.user_id = user.id  # re-claim if previously another user
+        await db.commit()
+        return DeviceResponse.model_validate(existing)
+
+    device = DeviceToken(
+        user_id=user.id,
+        token=payload.token,
+        platform=payload.platform,
+        app_version=payload.app_version,
+        is_active=True,
+    )
+    db.add(device)
+    await db.commit()
+    return DeviceResponse.model_validate(device)
+
+
+@router.delete(
+    "/devices/{token}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Unregister a device (stop push notifications)",
+)
+async def unregister_device(
+    token: str,
+    user: CurrentUser,
+    db: DbSession,
+) -> None:
+    """Deactivate a push token when the user logs out on a specific device.
+
+    Does not delete the row — sets ``is_active=False`` so the token history
+    is preserved for debugging delivery failures.
+    """
+    from sqlalchemy import select
+    from app.models.identity import DeviceToken
+
+    device = await db.scalar(
+        select(DeviceToken).where(
+            DeviceToken.token == token,
+            DeviceToken.user_id == user.id,
+        )
+    )
+    if device is not None:
+        device.is_active = False
+        await db.commit()

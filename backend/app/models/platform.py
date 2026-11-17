@@ -93,7 +93,7 @@ class OutboxMessage(Base):
 
     __tablename__ = "outbox_messages"
     __table_args__ = (
-        CheckConstraint("channel IN ('sms','email')", name="outbox_channel_check"),
+        CheckConstraint("channel IN ('sms','email','push')", name="outbox_channel_check"),
         CheckConstraint(
             "status IN ('pending','sent','failed','dead')", name="outbox_status_check"
         ),

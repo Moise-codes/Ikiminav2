@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     mtn_webhook_secret: str = ""
     mtn_callback_base_url: str = "http://localhost:8000"
 
+    # --- push notifications (Firebase Cloud Messaging) -------------------
+    # FCM project ID and service account JSON (single-line string from Firebase console).
+    # Leave empty to disable push — SMS will still be sent as a fallback.
+    fcm_project_id: str | None = None
+    fcm_service_account_json: str | None = None
+
     # --- email (transactional) -------------------------------------------
     email_provider: Literal["fake", "smtp", "resend"] = "fake"
     smtp_host: str | None = None
@@ -113,6 +119,27 @@ class Settings(BaseSettings):
     privacy_notice_version: str = "2026-11-14"
     idempotency_ttl_hours: int = Field(default=24, ge=1, le=168)
     outbox_max_attempts: int = Field(default=5, ge=1, le=20)
+
+    # --- ibimina business rules -------------------------------------------
+    # Number of days after the contribution_day before a penalty can be charged.
+    # e.g. 3 means a member has 3 grace days before the treasurer can record a fine.
+    penalty_grace_days: int = Field(default=3, ge=0, le=30)
+
+    # Default late-payment penalty as a percentage of the missed contribution.
+    # e.g. 10.0 means 10 % of the missed amount. The treasurer can override
+    # the amount per charge — this is just the suggested default shown in the UI.
+    default_penalty_pct: float = Field(default=10.0, ge=0.0, le=100.0)
+
+    # Maximum number of active loans a single member can hold in one group.
+    max_active_loans_per_member: int = Field(default=1, ge=1, le=5)
+
+    # Minimum number of months a member must have been active before they
+    # can request a loan (0 = no minimum).
+    loan_min_membership_months: int = Field(default=0, ge=0, le=24)
+
+    # Whether to allow loan requests when the group pot is insufficient to
+    # cover the requested principal. False = reject at request time.
+    allow_underfunded_loan_requests: bool = True
 
     @field_validator("allowed_origins", "trusted_proxies", mode="before")
     @classmethod

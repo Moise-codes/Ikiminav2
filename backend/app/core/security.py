@@ -170,3 +170,42 @@ def decode_access_token(token: str) -> dict[str, Any]:
     into a 401 without leaking why.
     """
     return jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+
+
+# ---------------------------------------------------------------------------
+# Access-token blacklist (Redis)
+# ---------------------------------------------------------------------------
+# When a user changes their password or logs out all sessions, we immediately
+# blacklist the current access token for the remainder of its TTL so it cannot
+# be used even before it expires. This closes the 15-minute window where a
+# stolen access token would otherwise remain valid.
+#
+# Key schema:  "blacklist:jti:<jti>"  → "1"   TTL = remaining seconds of token
+# ---------------------------------------------------------------------------
+
+import redis.asyncio as _aioredis
+
+_blacklist_redis: "_aioredis.Redis | None" = None
+
+
+def _get_blacklist_redis() -> "_aioredis.Redis":
+    global _blacklist_redis
+    if _blacklist_redis is None:
+        from app.core.config import settings as _s
+        _blacklist_redis = _aioredis.from_url(_s.redis_url, decode_responses=True)
+    return _blacklist_redis
+
+
+async def blacklist_token(jti: str, expires_at: "datetime") -> None:
+    """Add a JWT ID to the Redis blacklist until it would have expired."""
+    ttl = int((expires_at - datetime.now(timezone.utc)).total_seconds())
+    if ttl <= 0:
+        return  # already expired — no need to blacklist
+    client = _get_blacklist_redis()
+    await client.setex(f"blacklist:jti:{jti}", ttl, "1")
+
+
+async def is_token_blacklisted(jti: str) -> bool:
+    """Return True when a token's JTI has been blacklisted."""
+    client = _get_blacklist_redis()
+    return await client.exists(f"blacklist:jti:{jti}") == 1

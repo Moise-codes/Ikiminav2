@@ -18,6 +18,7 @@ from app.contributions.schemas import (
     DisputeRequest,
     DisputeResolveRequest,
     RecordContributionRequest,
+    RecordPenaltyRequest,
     ReverseContributionRequest,
 )
 from app.contributions.service import ContributionService
@@ -75,6 +76,51 @@ async def record_contribution(
     )
     await db.commit()
     return _contribution_response(contribution)
+
+
+@router.post(
+    "/penalties",
+    response_model=ContributionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@rate_limit("contributions.penalty", limit=60, window_seconds=3600)
+async def record_penalty(
+    payload: RecordPenaltyRequest,
+    request: Request,
+    user: CurrentUser = Depends(),
+    db: DbSession = Depends(),
+) -> ContributionResponse:
+    """Record a late-payment fine against a member (treasurer or president only).
+
+    Penalties are stored separately from regular contributions so they appear
+    distinctly in member statements and group reports.
+    """
+    service = ContributionService(db)
+    target_membership = await db.get(Membership, payload.membership_id)
+    if target_membership is None:
+        raise NotFoundError("Membership not found.")
+    group = await db.get(Group, target_membership.group_id)
+    if group is None:
+        raise NotFoundError("Group not found.")
+    await get_membership(
+        db=db,
+        group_id=group.id,
+        user_id=user.id,
+        required_roles=("president", "treasurer"),
+    )
+    penalty = await service.record_penalty(
+        group=group,
+        actor=user,
+        membership_id=payload.membership_id,
+        period=payload.period,
+        amount_rwf=payload.amount_rwf,
+        reason=payload.reason,
+        method=payload.method,
+        idempotency_key=payload.idempotency_key,
+        ip=_client_ip(request),
+    )
+    await db.commit()
+    return _contribution_response(penalty)
 
 
 @router.post(

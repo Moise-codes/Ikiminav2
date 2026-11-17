@@ -21,9 +21,10 @@ def _normalize(value: str) -> str:
 class RegisterRequest(BaseModel):
     """Registration payload.
 
-    Phone is required and becomes the primary key of the account. Email is
-    optional and secondary: it can be added later and must be verified
-    before it is trusted.
+    Phone is the sole identity required. Email is intentionally removed
+    from registration — our users are Rwandan mobile users who identify by
+    phone number only. Email can be added later from account settings as
+    an optional recovery channel.
     """
 
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -31,7 +32,6 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(min_length=2, max_length=100)
     phone: str = Field(min_length=8, max_length=20)
     password: str = Field(min_length=8, max_length=128)
-    email: str | None = Field(default=None, max_length=254)
     preferred_language: str = Field(default="rw", pattern="^(rw|en|fr)$")
 
     @field_validator("phone")
@@ -46,7 +46,7 @@ class RegisterRequest(BaseModel):
         if not 2 <= len(cleaned) <= 100:
             raise ValueError("name must be between 2 and 100 characters")
         allowed = set(
-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '’-."
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ''-."
         )
         if not set(cleaned) <= allowed:
             raise ValueError("name contains unsupported characters")
@@ -109,7 +109,7 @@ class LogoutRequest(BaseModel):
 
 
 class PasswordResetRequest(BaseModel):
-    """Start a password reset."""
+    """Start a password reset via SMS OTP."""
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -164,7 +164,11 @@ class ChangePhoneConfirm(BaseModel):
 
 
 class AddEmailRequest(BaseModel):
-    """Attach an email address to the account."""
+    """Attach an email address to the account (optional, settings only).
+
+    Email is for account recovery and optional report delivery. It is
+    never required for login or for using any app feature.
+    """
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -172,7 +176,7 @@ class AddEmailRequest(BaseModel):
 
 
 class VerifyEmailRequest(BaseModel):
-    """Confirm an email with the token from the link."""
+    """Confirm an email address with the token from the verification link."""
 
     token: str = Field(min_length=10, max_length=512)
 
@@ -187,26 +191,34 @@ class UpdateProfileRequest(BaseModel):
 
 
 class UserProfile(BaseModel):
-    """The caller's own profile."""
+    """The caller's own profile.
+
+    ``phone_operator`` is either ``"mtn"`` or ``"airtel"`` and is used by
+    the frontend to display the correct operator badge (MTN yellow / Airtel
+    red) next to the phone number.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     full_name: str
     phone: str | None
+    # "mtn" | "airtel" | None — derived at registration from the phone prefix
     phone_operator: str | None
     phone_verified_at: dt.datetime | None
     email: str | None
     email_verified_at: dt.datetime | None
     preferred_language: str
     status: str
+    is_platform_admin: bool
     privacy_notice_version: str
     privacy_accepted_at: dt.datetime
     created_at: dt.datetime
+    updated_at: dt.datetime
 
 
 class TokenPair(BaseModel):
-    """Access and refresh tokens."""
+    """Access and refresh token pair returned after a successful auth."""
 
     access_token: str
     refresh_token: str
@@ -216,7 +228,11 @@ class TokenPair(BaseModel):
 
 
 class AuthResponse(BaseModel):
-    """Registration and verification responses."""
+    """Envelope for registration and verification responses.
+
+    ``tokens`` is None after registration (phone not yet verified).
+    It is populated after verify-phone and login.
+    """
 
     user: UserProfile
     tokens: TokenPair | None = None
@@ -224,7 +240,7 @@ class AuthResponse(BaseModel):
 
 
 class SessionInfo(BaseModel):
-    """One active session, for the "where am I signed in" screen."""
+    """One active session, used on the 'active devices' settings screen."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -233,3 +249,31 @@ class SessionInfo(BaseModel):
     ip: str | None
     created_at: dt.datetime
     current: bool = False
+
+
+class RegisterDeviceRequest(BaseModel):
+    """Register a mobile device for push notifications.
+
+    ``token`` is the FCM registration token (Android / web) or the APNS
+    device token (iOS). It is replaced automatically when the OS rotates it.
+    ``platform`` must be ``"android"``, ``"ios"``, or ``"web"``.
+    ``app_version`` is optional but useful for debugging delivery failures.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    token: str = Field(min_length=10, max_length=512)
+    platform: str = Field(pattern="^(android|ios|web)$")
+    app_version: str | None = Field(default=None, max_length=32)
+
+
+class DeviceResponse(BaseModel):
+    """Registered device confirmation."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    platform: str
+    app_version: str | None
+    is_active: bool
+    created_at: dt.datetime

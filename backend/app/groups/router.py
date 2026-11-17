@@ -14,8 +14,11 @@ from app.core.rate_limit import rate_limit
 from app.groups.schemas import (
     AddMemberRequest,
     CreateGroupRequest,
+    DistributePotRequest,
     GroupResponse,
     MembershipResponse,
+    PotDistributionResponse,
+    DistributionShareResponse,
     UpdateGroupRulesRequest,
     UpdateMemberRequest,
 )
@@ -104,6 +107,10 @@ async def update_group_rules(
     )
     group = await service.get_group(group_id)
     updates = payload.model_dump(exclude_unset=True, exclude={"effective_from_period"})
+    # Replace loan_interest_pct with loan_interest_bp for the service layer
+    if "loan_interest_pct" in updates:
+        updates["loan_interest_bp"] = payload.loan_interest_bp
+        del updates["loan_interest_pct"]
     updated = await service.update_rules(
         group=group,
         actor=user,
@@ -214,3 +221,120 @@ async def remove_member(
     )
     await db.commit()
     return None
+
+
+@router.post(
+    "/{group_id}/distributions",
+    response_model=PotDistributionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@rate_limit("groups.distribute", limit=5, window_seconds=3600)
+async def distribute_pot(
+    payload: DistributePotRequest,
+    group_id: uuid.UUID = Path(...),
+    user: CurrentUser = Depends(),
+    db: DbSession = Depends(),
+) -> PotDistributionResponse:
+    """Record a year-end or cycle-end pot distribution (president only).
+
+    Calculates each active member's share — either equally or proportional
+    to their contributions — and returns the full breakdown.
+    """
+    service = GroupService(db)
+    await get_membership(
+        db=db, group_id=group_id, user_id=user.id, required_roles=("president",)
+    )
+    group = await service.get_group(group_id)
+    distribution, shares = await service.distribute_pot(
+        group=group,
+        actor=user,
+        period=payload.period,
+        total_amount_rwf=payload.total_amount_rwf,
+        equal_shares=payload.equal_shares,
+        notes=payload.notes,
+    )
+    await db.commit()
+    return PotDistributionResponse(
+        id=distribution.id,
+        group_id=distribution.group_id,
+        period=distribution.period,
+        total_amount_rwf=distribution.total_amount_rwf,
+        equal_shares=distribution.equal_shares,
+        notes=distribution.notes,
+        recorded_by_user_id=distribution.recorded_by_user_id,
+        created_at=distribution.created_at,
+        shares=[
+            DistributionShareResponse(
+                id=s.id,
+                distribution_id=s.distribution_id,
+                membership_id=s.membership_id,
+                amount_rwf=s.amount_rwf,
+                created_at=s.created_at,
+            )
+            for s in shares
+        ],
+    )
+
+
+@router.get(
+    "/{group_id}/distributions",
+    response_model=Page[PotDistributionResponse],
+)
+async def list_distributions(
+    group_id: uuid.UUID = Path(...),
+    user: CurrentUser = Depends(),
+    db: DbSession = Depends(),
+    pagination: PageParams = Depends(),
+) -> Page[PotDistributionResponse]:
+    """List all pot distributions for a group (any member can view)."""
+    from sqlalchemy import select, func
+    from app.models.group import PotDistribution, DistributionShare
+
+    await get_membership(db=db, group_id=group_id, user_id=user.id)
+
+    query = (
+        select(PotDistribution)
+        .where(PotDistribution.group_id == group_id)
+        .order_by(PotDistribution.created_at.desc())
+    )
+    total = await db.scalar(select(func.count()).select_from(query.subquery()))
+    result = await db.execute(query.offset(pagination.offset).limit(pagination.limit))
+    distributions = list(result.scalars())
+
+    items = []
+    for dist in distributions:
+        shares_result = await db.scalars(
+            select(DistributionShare).where(
+                DistributionShare.distribution_id == dist.id
+            )
+        )
+        share_list = list(shares_result)
+        items.append(
+            PotDistributionResponse(
+                id=dist.id,
+                group_id=dist.group_id,
+                period=dist.period,
+                total_amount_rwf=dist.total_amount_rwf,
+                equal_shares=dist.equal_shares,
+                notes=dist.notes,
+                recorded_by_user_id=dist.recorded_by_user_id,
+                created_at=dist.created_at,
+                shares=[
+                    DistributionShareResponse(
+                        id=s.id,
+                        distribution_id=s.distribution_id,
+                        membership_id=s.membership_id,
+                        amount_rwf=s.amount_rwf,
+                        created_at=s.created_at,
+                    )
+                    for s in share_list
+                ],
+            )
+        )
+
+    return Page[PotDistributionResponse].build(
+        items=items,
+        total=total or 0,
+        page=pagination.page,
+        per_page=pagination.per_page,
+    )

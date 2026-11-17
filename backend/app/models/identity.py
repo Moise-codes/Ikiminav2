@@ -186,3 +186,53 @@ class RefreshToken(Base):
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+# ---------------------------------------------------------------------------
+# Device tokens (mobile push notifications)
+# ---------------------------------------------------------------------------
+
+DEVICE_PLATFORMS = ("android", "ios", "web")
+
+
+class DeviceToken(Base):
+    """FCM / APNS push notification token for a user's device.
+
+    One user can have many devices (phone + tablet + web). Tokens are
+    replaced when the device generates a new one (e.g. after reinstall).
+    Stale tokens are cleaned up by the outbox worker after a failed push.
+    """
+
+    __tablename__ = "device_tokens"
+    __table_args__ = (
+        CheckConstraint(
+            "platform IN ('android','ios','web')",
+            name="device_token_platform_check",
+        ),
+        # One active token per device (identified by token value itself).
+        UniqueConstraint("token", name="uq_device_token"),
+        Index("device_tokens_user_id", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    # FCM registration token (Android/web) or APNS device token (iOS)
+    token: Mapped[str] = mapped_column(String(512), nullable=False)
+    platform: Mapped[str] = mapped_column(String(8), nullable=False)
+    # App version — useful for debugging push issues
+    app_version: Mapped[str | None] = mapped_column(String(32))
+    # Set to False when a push returns "invalid token" so the worker skips it
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true"
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

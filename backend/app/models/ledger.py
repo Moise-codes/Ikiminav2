@@ -26,7 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, uuid7
 
-LEDGER_TYPES = ("payment", "reversal")
+LEDGER_TYPES = ("payment", "reversal", "penalty")
 PAYMENT_METHODS = ("cash", "mtn_momo", "airtel_money", "bank")
 DISPUTE_STATUSES = ("open", "upheld", "rejected")
 
@@ -34,18 +34,18 @@ DISPUTE_STATUSES = ("open", "upheld", "rejected")
 class Contribution(Base):
     __tablename__ = "contributions"
     __table_args__ = (
-        CheckConstraint("type IN ('payment','reversal')", name="contribution_type_check"),
+        CheckConstraint("type IN ('payment','reversal','penalty')", name="contribution_type_check"),
         CheckConstraint(
             "method IN ('cash','mtn_momo','airtel_money','bank')",
             name="contribution_method_check",
         ),
         CheckConstraint("amount_rwf <> 0", name="contribution_amount_nonzero"),
         CheckConstraint(
-            "(type = 'payment' AND amount_rwf > 0) OR (type = 'reversal' AND amount_rwf < 0)",
+            "(type IN ('payment','penalty') AND amount_rwf > 0) OR (type = 'reversal' AND amount_rwf < 0)",
             name="contribution_sign_rule",
         ),
         CheckConstraint(
-            "(type = 'payment' AND reverses_id IS NULL) OR (type = 'reversal' AND reverses_id IS NOT NULL)",
+            "(type IN ('payment','penalty') AND reverses_id IS NULL) OR (type = 'reversal' AND reverses_id IS NOT NULL)",
             name="contribution_reversal_link",
         ),
         CheckConstraint("paid_at <= created_at", name="contribution_paid_not_future"),

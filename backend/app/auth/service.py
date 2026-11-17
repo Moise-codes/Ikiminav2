@@ -74,27 +74,25 @@ class AuthService:
         full_name: str,
         phone_raw: str,
         password: str,
-        email_raw: str | None,
         preferred_language: str,
         ip: str | None = None,
     ) -> tuple[User, str]:
         """Create an unverified account and return it with the OTP to send.
 
+        Email is NOT collected at registration. Users identify by phone only.
+        Email can be added later from account settings as an optional recovery
+        channel.
+
         The phone number is normalized before anything else touches it, so
         ``0788123456`` and ``+250788123456`` can never create two accounts.
         """
         phone = self._normalize_phone(phone_raw)
-        email = self._normalize_email(email_raw) if email_raw else None
 
         validate_password_strength(password, phone=phone.e164)
 
         existing = await self._user_by_phone(phone.e164)
         if existing is not None:
             raise DuplicatePhoneError()
-        if email:
-            clash = await self._user_by_email(email)
-            if clash is not None:
-                raise DuplicateEmailError()
 
         code = generate_otp()
         user = User(
@@ -102,7 +100,7 @@ class AuthService:
             phone=phone.e164,
             phone_operator=phone.operator,
             password_hash=hash_password(password),
-            email=email,
+            email=None,
             preferred_language=preferred_language,
             status="active",
             privacy_notice_version=settings.privacy_notice_version,
@@ -431,7 +429,7 @@ class AuthService:
         if user.status == "locked":
             user.status = "active"
 
-        # A password reset must invalidate every existing session.
+        # Revoke every refresh token for this user.
         await self.db.execute(
             update(RefreshToken)
             .where(
@@ -665,3 +663,22 @@ class AuthService:
         )
         await self.db.flush()
         return result.rowcount or 0
+
+    async def blacklist_current_access_token(
+        self, *, token_payload: dict
+    ) -> None:
+        """Blacklist the caller's current access token in Redis.
+
+        Called after password reset or logout-all so the token that was used
+        to authenticate the request cannot be reused for the remaining TTL.
+        ``token_payload`` is the decoded JWT dict (has ``jti`` and ``exp``).
+        """
+        from app.core.security import blacklist_token
+        import datetime as _dt
+
+        jti = token_payload.get("jti")
+        exp = token_payload.get("exp")
+        if not jti or not exp:
+            return
+        expires_at = _dt.datetime.fromtimestamp(exp, tz=_dt.timezone.utc)
+        await blacklist_token(jti, expires_at)

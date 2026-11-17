@@ -378,3 +378,135 @@ class GroupService:
             template="group_invitation",
             payload={"group": group.name if group else "a savings group"},
         )
+
+    # ------------------------------------------------------------------
+    # pot distribution
+    # ------------------------------------------------------------------
+    async def distribute_pot(
+        self,
+        *,
+        group: Group,
+        actor: User,
+        period: str,
+        total_amount_rwf: int,
+        equal_shares: bool,
+        notes: str | None,
+    ) -> tuple:
+        """Record a cycle-end pot distribution and compute per-member shares.
+
+        Returns a ``(PotDistribution, list[DistributionShare])`` tuple.
+
+        Share calculation:
+        - ``equal_shares=True``  → every active member gets an equal slice.
+        - ``equal_shares=False`` → each member's share is proportional to
+          their total contributions recorded for the group up to and
+          including ``period``.  Members with zero contributions still
+          receive a share equal to the minimum (1 RWF) so no one is
+          silently excluded; the remaining amount is split proportionally.
+        """
+        from sqlalchemy import func as _func, select as _select
+        from app.models.group import PotDistribution, DistributionShare
+        from app.models.contributions import Contribution
+
+        # Fetch active members
+        members_result = await self.db.scalars(
+            _select(Membership).where(
+                Membership.group_id == group.id,
+                Membership.status == "active",
+            )
+        )
+        members = list(members_result)
+        if not members:
+            raise ValidationError(
+                "Cannot distribute pot — the group has no active members.",
+                code="NO_ACTIVE_MEMBERS",
+            )
+
+        distribution = PotDistribution(
+            group_id=group.id,
+            period=period,
+            total_amount_rwf=total_amount_rwf,
+            equal_shares=equal_shares,
+            notes=notes,
+            recorded_by_user_id=actor.id,
+        )
+        self.db.add(distribution)
+        await self.db.flush()  # get distribution.id
+
+        shares: list[DistributionShare] = []
+
+        if equal_shares:
+            base = total_amount_rwf // len(members)
+            remainder = total_amount_rwf - base * len(members)
+            for idx, member in enumerate(members):
+                amount = base + (1 if idx < remainder else 0)
+                share = DistributionShare(
+                    distribution_id=distribution.id,
+                    membership_id=member.id,
+                    amount_rwf=max(amount, 1),
+                )
+                self.db.add(share)
+                shares.append(share)
+        else:
+            # Proportional: weight by total paid contributions per member
+            paid_rows = await self.db.execute(
+                _select(
+                    Contribution.membership_id,
+                    _func.coalesce(_func.sum(Contribution.amount_rwf), 0).label("total"),
+                )
+                .where(
+                    Contribution.group_id == group.id,
+                    Contribution.type == "payment",
+                )
+                .group_by(Contribution.membership_id)
+            )
+            paid_map: dict = {str(row.membership_id): int(row.total) for row in paid_rows}
+            total_paid = sum(paid_map.get(str(m.id), 0) for m in members)
+
+            if total_paid == 0:
+                # No contributions recorded — fall back to equal shares
+                base = total_amount_rwf // len(members)
+                remainder = total_amount_rwf - base * len(members)
+                for idx, member in enumerate(members):
+                    amount = base + (1 if idx < remainder else 0)
+                    share = DistributionShare(
+                        distribution_id=distribution.id,
+                        membership_id=member.id,
+                        amount_rwf=max(amount, 1),
+                    )
+                    self.db.add(share)
+                    shares.append(share)
+            else:
+                allocated = 0
+                for idx, member in enumerate(members):
+                    contrib = paid_map.get(str(member.id), 0)
+                    if idx == len(members) - 1:
+                        # Last member gets the remainder to avoid rounding loss
+                        amount = total_amount_rwf - allocated
+                    else:
+                        amount = round(total_amount_rwf * contrib / total_paid)
+                    amount = max(amount, 1)
+                    allocated += amount
+                    share = DistributionShare(
+                        distribution_id=distribution.id,
+                        membership_id=member.id,
+                        amount_rwf=amount,
+                    )
+                    self.db.add(share)
+                    shares.append(share)
+
+        await AuditService(self.db).record(
+            action="group.pot_distributed",
+            entity_type="pot_distribution",
+            entity_id=distribution.id,
+            actor_user_id=actor.id,
+            group_id=group.id,
+            after_data={
+                "period": period,
+                "total_amount_rwf": total_amount_rwf,
+                "equal_shares": equal_shares,
+                "num_members": len(members),
+            },
+        )
+        await self.db.flush()
+        return distribution, shares

@@ -1,4 +1,7 @@
 services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16
+  # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     environment:
@@ -15,6 +18,9 @@ services:
       timeout: 5s
       retries: 10
 
+  # ---------------------------------------------------------------------------
+  # Redis 7
+  # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     ports:
@@ -25,11 +31,35 @@ services:
       timeout: 5s
       retries: 10
 
-  api:
+  # ---------------------------------------------------------------------------
+  # Migration runner
+  # Runs alembic upgrade head before the API starts.
+  # The API depends on this service completing successfully.
+  # ---------------------------------------------------------------------------
+  migrate:
     build: .
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://itsinda:itsinda@postgres:5432/itsinda
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: local
+      SECRET_KEY: dev-secret-do-not-use-in-production
+      JWT_SECRET: dev-jwt-secret-do-not-use-in-production
+      OTP_HMAC_SECRET: dev-otp-secret-do-not-use-in-production
+      PRIVACY_NOTICE_VERSION: "2026-11-14"
+    command: ["alembic", "upgrade", "head"]
+    # This service exits after running migrations — that is expected.
+
+  # ---------------------------------------------------------------------------
+  # API server
+  # ---------------------------------------------------------------------------
+  api:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     environment:
@@ -38,18 +68,41 @@ services:
       ENVIRONMENT: local
       DEBUG: "1"
       SMS_PROVIDER: fake
+      EMAIL_PROVIDER: fake
       LOG_LEVEL: DEBUG
+      LOG_JSON: "0"
       SECRET_KEY: dev-secret-do-not-use-in-production
       JWT_SECRET: dev-jwt-secret-do-not-use-in-production
       OTP_HMAC_SECRET: dev-otp-secret-do-not-use-in-production
+      PRIVACY_NOTICE_VERSION: "2026-11-14"
+      ALLOWED_ORIGINS: "http://localhost:5173,http://localhost:3000,http://localhost:8081"
+      # Push notifications — leave empty in dev (push is skipped, SMS fake sender used)
+      FCM_PROJECT_ID: ""
+      FCM_SERVICE_ACCOUNT_JSON: ""
+      # MTN MoMo sandbox — fill in if you have sandbox credentials
+      MTN_ENVIRONMENT: sandbox
+      MTN_COLLECTION_API_USER: ""
+      MTN_COLLECTION_API_KEY: ""
+      MTN_DISBURSEMENT_API_USER: ""
+      MTN_DISBURSEMENT_API_KEY: ""
+      MTN_WEBHOOK_SECRET: ""
     ports:
       - "8000:8000"
+    # Reload on code changes when running locally with a bind mount
+    # (uncomment the volume below and change the command to --reload)
+    # command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    # volumes:
+    #   - .:/app
 
+  # ---------------------------------------------------------------------------
+  # Outbox worker
+  # Delivers SMS, email, and push notifications from the transactional outbox.
+  # ---------------------------------------------------------------------------
   worker:
     build: .
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     environment:
@@ -57,11 +110,16 @@ services:
       REDIS_URL: redis://redis:6379/0
       ENVIRONMENT: local
       SMS_PROVIDER: fake
+      EMAIL_PROVIDER: fake
       LOG_LEVEL: DEBUG
+      LOG_JSON: "0"
       SECRET_KEY: dev-secret-do-not-use-in-production
       JWT_SECRET: dev-jwt-secret-do-not-use-in-production
       OTP_HMAC_SECRET: dev-otp-secret-do-not-use-in-production
-    command: ["python", "worker/main.py"]
+      PRIVACY_NOTICE_VERSION: "2026-11-14"
+      FCM_PROJECT_ID: ""
+      FCM_SERVICE_ACCOUNT_JSON: ""
+    command: ["python", "-m", "worker.main"]
 
 volumes:
   pgdata:

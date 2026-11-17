@@ -124,6 +124,85 @@ class ContributionService:
 
         return contribution
 
+    async def record_penalty(
+        self,
+        *,
+        group: Group,
+        actor: User,
+        membership_id: uuid.UUID,
+        period: str,
+        amount_rwf: int,
+        reason: str,
+        method: str,
+        idempotency_key: str | None,
+        ip: str | None,
+    ) -> Contribution:
+        """Record a late-payment fine as a separate ``penalty`` row.
+
+        Penalties go into the same contributions table but with
+        ``type='penalty'`` so reports can separate fines from regular
+        contributions cleanly.
+        """
+        membership = await self._get_membership(group.id, membership_id)
+        if membership is None or membership.status != "active":
+            raise PermissionDeniedError(
+                "Only active members can be charged a penalty.",
+                code="MEMBER_NOT_ACTIVE",
+            )
+
+        if idempotency_key:
+            existing = await self._find_idempotency(actor.id, idempotency_key)
+            if existing is not None:
+                stored_body = existing.get("response_body") or {}
+                contribution_id = stored_body.get("contribution_id")
+                if contribution_id:
+                    return await self.db.get(Contribution, contribution_id)
+                raise ConflictError(
+                    "A request with this idempotency key is in progress.",
+                    code="IDEMPOTENCY_IN_PROGRESS",
+                )
+
+        await self.db.execute(
+            select(Group).where(Group.id == group.id).with_for_update()
+        )
+
+        penalty = Contribution(
+            group_id=group.id,
+            membership_id=membership_id,
+            period=period,
+            type="penalty",
+            amount_rwf=amount_rwf,
+            paid_at=dt.datetime.now(dt.timezone.utc),
+            method=method,
+            reference=reason[:64],
+            recorded_by_user_id=actor.id,
+            idempotency_key=idempotency_key,
+        )
+        self.db.add(penalty)
+        await self.db.flush()
+
+        if idempotency_key:
+            await self._store_idempotency(actor.id, idempotency_key, penalty.id, 201)
+
+        await AuditService(self.db).record(
+            action="contribution.penalty_recorded",
+            entity_type="contribution",
+            entity_id=penalty.id,
+            actor_user_id=actor.id,
+            group_id=group.id,
+            after_data={
+                "membership_id": str(membership_id),
+                "period": period,
+                "amount_rwf": amount_rwf,
+                "reason": reason,
+            },
+            ip=ip,
+        )
+
+        # Notify the penalised member
+        await self._notify_member(penalty)
+        return penalty
+
     async def reverse_contribution(
         self,
         *,

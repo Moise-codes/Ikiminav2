@@ -49,6 +49,16 @@ async def get_current_user(
     if payload.get("typ") != "access":
         raise AuthenticationError()
 
+    # Check the token has not been explicitly blacklisted (password change /
+    # logout-all revokes the access token immediately in Redis).
+    jti = payload.get("jti")
+    if jti:
+        from app.core.security import is_token_blacklisted
+        if await is_token_blacklisted(jti):
+            raise AuthenticationError(
+                "This session has been revoked.", code="TOKEN_REVOKED"
+            )
+
     try:
         user_id = uuid.UUID(payload["sub"])
     except (KeyError, ValueError) as exc:

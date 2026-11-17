@@ -175,3 +175,66 @@ class Membership(TimestampMixin, Base):
     added_by_user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
+
+
+# ---------------------------------------------------------------------------
+# Pot distribution (year-end / cycle-end)
+# ---------------------------------------------------------------------------
+
+class PotDistribution(Base):
+    """Records a year-end or cycle-end distribution of the group pot.
+
+    When a group closes a savings cycle, the president records the total
+    amount being distributed and whether it is split equally or
+    proportionally. Individual shares are stored in ``DistributionShare``.
+
+    This table is append-only — distributions are never deleted or edited.
+    """
+
+    __tablename__ = "pot_distributions"
+    __table_args__ = (
+        CheckConstraint("total_amount_rwf > 0", name="distribution_amount_positive"),
+        Index("distributions_group_period", "group_id", "period"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("groups.id", ondelete="RESTRICT"), nullable=False
+    )
+    period: Mapped[str] = mapped_column(String(8), nullable=False)
+    total_amount_rwf: Mapped[int] = mapped_column(nullable=False)
+    equal_shares: Mapped[bool] = mapped_column(nullable=False, server_default="false")
+    notes: Mapped[str | None] = mapped_column(String(500))
+    recorded_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class DistributionShare(Base):
+    """One member's share in a pot distribution.
+
+    Rows are created by the service when a distribution is recorded and
+    are never modified afterward.
+    """
+
+    __tablename__ = "distribution_shares"
+    __table_args__ = (
+        CheckConstraint("amount_rwf > 0", name="share_amount_positive"),
+        UniqueConstraint("distribution_id", "membership_id", name="uq_share_per_member"),
+        Index("shares_distribution", "distribution_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
+    distribution_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("pot_distributions.id", ondelete="CASCADE"), nullable=False
+    )
+    membership_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("memberships.id", ondelete="RESTRICT"), nullable=False
+    )
+    amount_rwf: Mapped[int] = mapped_column(nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

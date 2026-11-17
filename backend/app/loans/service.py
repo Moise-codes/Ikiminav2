@@ -165,17 +165,24 @@ class LoanService:
             loan.decided_at = dt.datetime.now(dt.timezone.utc)
             loan.decision_reason = reason
 
-            # Build the repayment schedule.
+            # Build the repayment schedule with correct due dates.
+            # Due dates are anchored to the group's contribution_day:
+            #   - monthly/biweekly groups: contribution_day is day-of-month (1-28)
+            #   - weekly groups: contribution_day is day-of-week (0=Mon…6=Sun)
+            # We always compute from the NEXT occurrence of that day after today.
             schedule = build_schedule(
                 loan.principal_rwf, loan.interest_bp, loan.term_months
             )
-            for index, (principal_part, interest_part, total) in enumerate(
-                schedule, start=1
+            today = dt.date.today()
+            due_dates = _compute_due_dates(
+                start=today,
+                frequency=group.frequency,
+                contribution_day=group.contribution_day,
+                count=loan.term_months,
+            )
+            for index, ((principal_part, interest_part, total), due) in enumerate(
+                zip(schedule, due_dates), start=1
             ):
-                # Due dates are monthly from now (simplified; a production
-                # system would compute from the group's contribution day).
-                due = (dt.date.today()
-                       .replace(day=1) + dt.timedelta(days=30 * index))
                 self.db.add(
                     LoanScheduleItem(
                         loan_id=loan.id,
@@ -297,7 +304,7 @@ class LoanService:
             remaining -= apply
             items_to_mark.append(item)
 
-        outstanding = max(loan.outstanding_rwf or 0 - amount_rwf, 0)
+        outstanding = max((loan.outstanding_rwf or 0) - amount_rwf, 0)
         loan.outstanding_rwf = outstanding
         if outstanding == 0:
             loan.status = "repaid"
@@ -413,3 +420,82 @@ class LoanService:
             template=template,
             payload={"amount": loan.principal_rwf, "group_id": str(loan.group_id)},
         )
+
+
+# ---------------------------------------------------------------------------
+# Due-date calendar helpers
+# ---------------------------------------------------------------------------
+
+def _next_monthly_due(start: dt.date, day_of_month: int) -> dt.date:
+    """Return the next occurrence of ``day_of_month`` on or after ``start``.
+
+    ``day_of_month`` is 1–28 (clamped so Feb always has a valid date).
+    """
+    day = min(day_of_month, 28)
+    if start.day <= day:
+        # This month still has that day ahead
+        try:
+            return start.replace(day=day)
+        except ValueError:
+            pass
+    # Move to next month
+    if start.month == 12:
+        return dt.date(start.year + 1, 1, day)
+    return dt.date(start.year, start.month + 1, day)
+
+
+def _add_months(d: dt.date, months: int) -> dt.date:
+    """Add ``months`` to a date, clamped to 28 to avoid month-end issues."""
+    month = d.month - 1 + months
+    year = d.year + month // 12
+    month = month % 12 + 1
+    day = min(d.day, 28)
+    return dt.date(year, month, day)
+
+
+def _compute_due_dates(
+    *,
+    start: dt.date,
+    frequency: str,
+    contribution_day: int,
+    count: int,
+) -> list[dt.date]:
+    """Compute ``count`` due dates anchored to the group's contribution_day.
+
+    ``frequency`` is ``"weekly"`` | ``"biweekly"`` | ``"monthly"``.
+
+    For monthly/biweekly groups ``contribution_day`` is 1–28 (day of month).
+    For weekly groups ``contribution_day`` is 0–6 (0=Monday … 6=Sunday).
+
+    The first due date is always at least one full period ahead of ``start``
+    so the borrower has time to repay.
+    """
+    dates: list[dt.date] = []
+
+    if frequency == "monthly":
+        first = _next_monthly_due(start, contribution_day)
+        # Ensure at least one month ahead
+        if first <= start:
+            first = _add_months(first, 1)
+        for i in range(count):
+            dates.append(_add_months(first, i))
+
+    elif frequency == "biweekly":
+        # Biweekly: treat contribution_day as day-of-month, every 2 months
+        first = _next_monthly_due(start, contribution_day)
+        if first <= start:
+            first = _add_months(first, 2)
+        for i in range(count):
+            dates.append(_add_months(first, i * 2))
+
+    else:
+        # Weekly: contribution_day is 0=Monday … 6=Sunday
+        target_weekday = contribution_day % 7
+        days_ahead = (target_weekday - start.weekday()) % 7
+        if days_ahead == 0:
+            days_ahead = 7  # always at least one full week ahead
+        first = start + dt.timedelta(days=days_ahead)
+        for i in range(count):
+            dates.append(first + dt.timedelta(weeks=i))
+
+    return dates
