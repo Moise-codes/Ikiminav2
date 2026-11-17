@@ -54,7 +54,13 @@ async def get_current_user(
     jti = payload.get("jti")
     if jti:
         from app.core.security import is_token_blacklisted
-        if await is_token_blacklisted(jti):
+        try:
+            blacklisted = await is_token_blacklisted(jti)
+        except Exception:
+            # Redis outage must not take down every authenticated request —
+            # the blacklist is a revocation optimisation, not the primary check.
+            blacklisted = False
+        if blacklisted:
             raise AuthenticationError(
                 "This session has been revoked.", code="TOKEN_REVOKED"
             )
@@ -75,6 +81,8 @@ async def get_current_user(
         raise AuthenticationError("This account is not active.", code="ACCOUNT_INACTIVE")
 
     request.state.user_id = user.id
+    request.state.token_payload = payload
+    request.state.access_token = credentials.credentials
     return user
 
 

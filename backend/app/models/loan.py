@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     SmallInteger,
     String,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column

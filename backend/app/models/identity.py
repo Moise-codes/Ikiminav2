@@ -22,6 +22,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import Mapped, mapped_column
@@ -116,7 +117,7 @@ class OtpChallenge(Base):
             name="otp_purpose_check",
         ),
         CheckConstraint("attempts >= 0 AND attempts <= 5", name="otp_attempts_check"),
-        Index("otp_phone_purpose_created", "phone", "purpose", created_at.desc()),
+        Index("otp_phone_purpose_created", "phone", "purpose", text("created_at DESC")),
         Index("otp_expires_at", "expires_at"),
     )
 

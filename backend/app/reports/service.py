@@ -20,7 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, PermissionDeniedError
-from app.models.contributions import Contribution, Repayment
+from app.models.ledger import Contribution, Repayment
 from app.models.group import Group, Membership
 from app.models.identity import User
 from app.models.loan import Loan  # was missing — caused NameError
@@ -41,56 +41,16 @@ class ReportsService:
         Returns:
         - total_contributed_rwf  : sum of all payment-type contributions
         - total_penalties_rwf    : sum of all penalty-type contributions
-        - total_loaned_rwf       : principal of active/disbursed loans
+        - total_loaned_rwf       : lifetime principal that has left the pot
         - total_repaid_rwf       : sum of all repayment payments
         - interest_earned_rwf    : interest component of all repayments
-        - available_pot_rwf      : contributed + penalties − active loans
+        - available_pot_rwf      : cash still available (shared pot_breakdown)
         """
-        contributed = await self.db.scalar(
-            select(func.coalesce(func.sum(Contribution.amount_rwf), 0)).where(
-                Contribution.group_id == group.id,
-                Contribution.type == "payment",
-            )
-        )
-        penalties = await self.db.scalar(
-            select(func.coalesce(func.sum(Contribution.amount_rwf), 0)).where(
-                Contribution.group_id == group.id,
-                Contribution.type == "penalty",
-            )
-        )
-        loaned = await self.db.scalar(
-            select(func.coalesce(func.sum(Loan.principal_rwf), 0)).where(
-                Loan.group_id == group.id,
-                Loan.status.in_(("approved", "disbursed", "overdue")),
-            )
-        )
-        repaid = await self.db.scalar(
-            select(func.coalesce(func.sum(Repayment.amount_rwf), 0)).where(
-                Repayment.group_id == group.id,
-                Repayment.type == "payment",
-            )
-        )
-        interest_earned = await self.db.scalar(
-            select(
-                func.coalesce(func.sum(Repayment.interest_part_rwf), 0)
-            ).where(
-                Repayment.group_id == group.id,
-                Repayment.type == "payment",
-            )
-        )
-        total_in = int(contributed or 0) + int(penalties or 0)
-        total_out = int(loaned or 0) - int(repaid or 0)
-        available = max(total_in - max(total_out, 0), 0)
+        from app.common.pot import pot_breakdown
 
-        return {
-            "group_id": str(group.id),
-            "total_contributed_rwf": int(contributed or 0),
-            "total_penalties_rwf": int(penalties or 0),
-            "total_loaned_rwf": int(loaned or 0),
-            "total_repaid_rwf": int(repaid or 0),
-            "interest_earned_rwf": int(interest_earned or 0),
-            "available_pot_rwf": available,
-        }
+        breakdown = await pot_breakdown(self.db, group.id)
+        breakdown["group_id"] = str(group.id)
+        return breakdown
 
     # ------------------------------------------------------------------
     # member statement
@@ -138,10 +98,13 @@ class ReportsService:
                 Contribution.type == "penalty",
             )
         )
+        from app.common.pot import COMMITTED_LOAN_STATUSES, ACTIVE_LOAN_STATUSES
+
         borrowed = await self.db.scalar(
             select(func.coalesce(func.sum(Loan.principal_rwf), 0)).where(
                 Loan.group_id == group.id,
                 Loan.membership_id == membership_id,
+                Loan.status.in_(COMMITTED_LOAN_STATUSES),
             )
         )
         repaid = await self.db.scalar(
@@ -151,13 +114,20 @@ class ReportsService:
                 Repayment.type == "payment",
             )
         )
+        outstanding = await self.db.scalar(
+            select(func.coalesce(func.sum(Loan.outstanding_rwf), 0)).where(
+                Loan.group_id == group.id,
+                Loan.membership_id == membership_id,
+                Loan.status.in_(ACTIVE_LOAN_STATUSES),
+            )
+        )
         return {
             "membership_id": str(membership_id),
             "total_contributed_rwf": int(contributed or 0),
             "total_penalties_rwf": int(penalties or 0),
             "total_borrowed_rwf": int(borrowed or 0),
             "total_repaid_rwf": int(repaid or 0),
-            "outstanding_rwf": max(int(borrowed or 0) - int(repaid or 0), 0),
+            "outstanding_rwf": int(outstanding or 0),
             "periods": [],
         }
 

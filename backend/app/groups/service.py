@@ -168,6 +168,24 @@ class GroupService:
             group.name = updates["name"]
         if "description" in updates:
             group.description = updates["description"]
+
+        # contribution_day meaning depends on frequency:
+        #   weekly → 0-6 (day-of-week), monthly/biweekly → 1-28 (day-of-month)
+        freq = updates.get("frequency", group.frequency)
+        day = updates.get("contribution_day", group.contribution_day)
+        if freq == "weekly":
+            if not (0 <= day <= 6):
+                raise ValidationError(
+                    "Weekly groups require contribution_day 0-6 "
+                    "(0 = Monday, 6 = Sunday).",
+                    code="INVALID_CONTRIBUTION_DAY",
+                )
+        elif not (1 <= day <= 28):
+            raise ValidationError(
+                "Monthly/biweekly groups require contribution_day 1-28.",
+                code="INVALID_CONTRIBUTION_DAY",
+            )
+
         group.rules_version = new_version
 
         version = GroupRuleVersion(
@@ -406,7 +424,7 @@ class GroupService:
         """
         from sqlalchemy import func as _func, select as _select
         from app.models.group import PotDistribution, DistributionShare
-        from app.models.contributions import Contribution
+        from app.models.ledger import Contribution
 
         # Fetch active members
         members_result = await self.db.scalars(

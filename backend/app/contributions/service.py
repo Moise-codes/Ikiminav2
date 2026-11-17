@@ -22,7 +22,7 @@ from app.core.errors import (
 )
 from app.core.dependencies import Pagination
 from app.integrations.sms.templates import render
-from app.models.contributions import Contribution, ContributionDispute
+from app.models.ledger import Contribution, ContributionDispute
 from app.models.group import Group, Membership
 from app.models.identity import User
 from app.notifications.service import NotificationService
@@ -468,8 +468,9 @@ class ContributionService:
         if not user or not user.phone:
             return
         notifications = NotificationService(self.db)
-        await notifications.enqueue_sms(
-            to=user.phone,
+        await notifications.notify(
+            user_id=user.id,
+            phone=user.phone,
             template="contribution_recorded",
             payload={
                 "amount": contribution.amount_rwf,

@@ -16,6 +16,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -32,8 +33,8 @@ class AuditLog(Base):
 
     __tablename__ = "audit_logs"
     __table_args__ = (
-        Index("audit_group_created", "group_id", created_at.desc()),
-        Index("audit_actor_created", "actor_user_id", created_at.desc()),
+        Index("audit_group_created", "group_id", text("created_at DESC")),
+        Index("audit_actor_created", "actor_user_id", text("created_at DESC")),
         Index("audit_entity", "entity_type", "entity_id"),
     )
 

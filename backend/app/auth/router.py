@@ -139,6 +139,7 @@ async def verify_phone(
     summary="Send another verification code",
 )
 @rate_limit("otp", limit=5, window_seconds=600)
+@rate_limit("otp_hour", limit=settings.rate_limit_otp_per_hour, window_seconds=3600)
 async def resend_otp(
     payload: ResendOtpRequest,
     request: Request,
@@ -234,6 +235,11 @@ async def logout(
     revoked = await service.logout(
         refresh_token=payload.refresh_token, user=user, all_sessions=payload.all_sessions
     )
+    # Revoke the access token immediately too — it would otherwise stay
+    # valid until its natural expiry.
+    token_payload = getattr(request.state, "token_payload", None)
+    if token_payload:
+        await service.blacklist_current_access_token(token_payload=token_payload)
     await db.commit()
     return success({"revoked_sessions": revoked})
 
@@ -266,6 +272,7 @@ async def list_sessions(
     summary="Start a password reset",
 )
 @rate_limit("otp", limit=5, window_seconds=3600)
+@rate_limit("otp_hour", limit=settings.rate_limit_otp_per_hour, window_seconds=3600)
 async def forgot_password(
     payload: PasswordResetRequest,
     request: Request,

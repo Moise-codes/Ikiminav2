@@ -15,6 +15,7 @@ from app.core.exceptions import app_error_handler, integrity_error_handler
 from app.core.middleware import RequestIdMiddleware, SecurityHeadersMiddleware
 from app.core.rate_limit import _get_redis
 from app.integrations.mtn.client import MtnClient
+from app.integrations.airtel.webhook import router as airtel_webhook_router
 from app.integrations.mtn.webhook import router as mtn_webhook_router
 
 # Routers — imported here so OpenAPI documents every endpoint.
@@ -125,6 +126,7 @@ def create_app() -> FastAPI:
     app.include_router(payments_router)
     app.include_router(reports_router)
     app.include_router(mtn_webhook_router)
+    app.include_router(airtel_webhook_router)
 
     return app
 

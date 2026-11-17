@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_sessionmaker
 from app.integrations.email.resend import ResendEmailSender
+from app.integrations.push.fcm import FcmPushSender
 from app.integrations.sms.sender import build_sms_sender
 from app.integrations.sms.templates import render
 from app.models.platform import OutboxMessage
@@ -32,6 +33,7 @@ class OutboxWorker:
         self._running = False
         self.sms_sender = build_sms_sender()
         self.email_sender = ResendEmailSender() if settings.email_provider == "resend" else None
+        self.push_sender = FcmPushSender()
 
     async def run(self) -> None:
         """Run until cancelled."""
@@ -61,6 +63,8 @@ class OutboxWorker:
                 await self.sms_sender.aclose()
             if self.email_sender and hasattr(self.email_sender, "aclose"):
                 await self.email_sender.aclose()
+            if self.push_sender and hasattr(self.push_sender, "aclose"):
+                await self.push_sender.aclose()
             logger.info("worker_stopped")
 
     async def _process_batch(self) -> None:
@@ -85,6 +89,8 @@ class OutboxWorker:
 
             if message.channel == "sms":
                 result = await self.sms_sender.send(to=message.recipient, message=body)
+            elif message.channel == "push":
+                result = await self._deliver_push(session, message)
             elif message.channel == "email" and self.email_sender:
                 # For email, we need to parse subject and body from the template
                 # For now, use the body as both subject and text
@@ -110,6 +116,32 @@ class OutboxWorker:
                 await self._fail(session, message, result.error if result else "unknown channel")
         except Exception as exc:  # noqa: BLE001
             await self._fail(session, message, str(exc)[:500])
+
+    async def _deliver_push(self, session: AsyncSession, message: OutboxMessage):
+        """Deliver a push notification via FCM and deactivate stale tokens."""
+        payload = message.payload or {}
+        title = payload.get("title")
+        body = payload.get("body")
+        if not body:
+            try:
+                body = render(message.template, "en", payload)
+            except Exception:
+                body = payload.get("template") or "You have a new notification."
+        data = {k: v for k, v in payload.items() if k not in ("device_token", "platform", "title", "body")}
+        result = await self.push_sender.send(
+            token=message.recipient, title=title, body=body, data=data
+        )
+        if result.invalid_token:
+            # Token is dead — deactivate it so future pushes skip this device.
+            from sqlalchemy import update
+            from app.models.identity import DeviceToken
+
+            await session.execute(
+                update(DeviceToken)
+                .where(DeviceToken.token == message.recipient)
+                .values(is_active=False)
+            )
+        return result
 
     async def _fail(
         self,

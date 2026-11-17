@@ -50,7 +50,7 @@ class Group(TimestampMixin, Base):
             name="groups_interest_range",
         ),
         CheckConstraint(
-            "contribution_day >= 1 AND contribution_day <= 28",
+            "contribution_day >= 0 AND contribution_day <= 28",
             name="groups_contribution_day_range",
         ),
         CheckConstraint("rules_version >= 1", name="groups_rules_version_check"),

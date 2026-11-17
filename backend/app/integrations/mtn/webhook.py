@@ -11,11 +11,13 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Header, Request, status
+from fastapi import APIRouter, Depends, Header, Request, status
 
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.dependencies import DbSession
 from app.integrations.mtn.client import MtnClient
+from app.payments.service import PaymentService
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,7 @@ def _mtn() -> MtnClient:
 @router.post("/collection", status_code=status.HTTP_202_ACCEPTED)
 async def collection_webhook(
     request: Request,
+    db: DbSession = Depends(),
     x_signature: str | None = Header(default=None, alias="X-Signature"),
     x_reference_id: str | None = Header(default=None, alias="X-Reference-Id"),
     x_external_id: str | None = Header(default=None, alias="X-External-Id"),
@@ -60,14 +63,24 @@ async def collection_webhook(
         },
     )
 
-    # The payment service updates the transaction record here. We keep this
-    # handler thin and idempotent: the same reference_id may be retried.
+    # Finalize the pending payment transaction (idempotent).
+    if x_reference_id and x_status:
+        service = PaymentService(db)
+        await service.handle_provider_callback(
+            provider="mtn",
+            provider_ref=x_reference_id,
+            raw_status=x_status,
+            provider_txn_id=x_external_id,
+            reason=x_reason,
+        )
+        await db.commit()
     return {"received": True, "reference_id": x_reference_id}
 
 
 @router.post("/disbursement", status_code=status.HTTP_202_ACCEPTED)
 async def disbursement_webhook(
     request: Request,
+    db: DbSession = Depends(),
     x_signature: str | None = Header(default=None, alias="X-Signature"),
     x_reference_id: str | None = Header(default=None, alias="X-Reference-Id"),
     x_external_id: str | None = Header(default=None, alias="X-External-Id"),
@@ -90,4 +103,14 @@ async def disbursement_webhook(
             "reason": x_reason,
         },
     )
+    if x_reference_id and x_status:
+        service = PaymentService(db)
+        await service.handle_provider_callback(
+            provider="mtn",
+            provider_ref=x_reference_id,
+            raw_status=x_status,
+            provider_txn_id=x_external_id,
+            reason=x_reason,
+        )
+        await db.commit()
     return {"received": True, "reference_id": x_reference_id}

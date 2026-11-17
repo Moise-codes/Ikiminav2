@@ -22,7 +22,7 @@ from app.contributions.schemas import (
     ReverseContributionRequest,
 )
 from app.contributions.service import ContributionService
-from app.models.contributions import Contribution, ContributionDispute
+from app.models.ledger import Contribution, ContributionDispute
 from app.models.group import Group, Membership
 
 router = APIRouter(prefix="/contributions", tags=["contributions"])

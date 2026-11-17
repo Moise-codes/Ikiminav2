@@ -70,6 +70,16 @@ def upgrade() -> None:
     )
 
     # ------------------------------------------------------------------
+    # 2b. outbox_messages — allow 'push' channel for FCM/APNS delivery
+    # ------------------------------------------------------------------
+    op.drop_constraint("outbox_channel_check", "outbox_messages", type_="check")
+    op.create_check_constraint(
+        "outbox_channel_check",
+        "outbox_messages",
+        "channel IN ('sms','email','push')",
+    )
+
+    # ------------------------------------------------------------------
     # 3. pot_distributions
     # ------------------------------------------------------------------
     op.create_table(
@@ -202,6 +212,14 @@ def downgrade() -> None:
     op.drop_table("device_tokens")
     op.drop_table("distribution_shares")
     op.drop_table("pot_distributions")
+
+    # Revert outbox channel constraint
+    op.drop_constraint("outbox_channel_check", "outbox_messages", type_="check")
+    op.create_check_constraint(
+        "outbox_channel_check",
+        "outbox_messages",
+        "channel IN ('sms','email')",
+    )
 
     # Revert contribution_day constraint
     op.drop_constraint("groups_contribution_day_range", "groups", type_="check")

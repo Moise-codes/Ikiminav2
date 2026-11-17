@@ -85,6 +85,22 @@ class Settings(BaseSettings):
     mtn_webhook_secret: str = ""
     mtn_callback_base_url: str = "http://localhost:8000"
 
+    # --- airtel money -----------------------------------------------------
+    # Airtel Money Africa API (developer.airtel.africa).
+    # Rwanda prefixes 72/73 route here automatically; 78/79 go to MTN.
+    airtel_environment: Literal["sandbox", "production"] = "sandbox"
+    airtel_base_url: str | None = None  # empty → env default
+    airtel_api_key: str = ""            # API key / client id
+    airtel_api_secret: str = ""         # API secret
+    airtel_country: str = "RW"
+    airtel_currency: str = "RWF"
+    # MSISDN of the group's Airtel wallet used for disbursements.
+    airtel_sender_msisdn: str = ""
+    # Wallet PIN for disbursements — encrypted with Airtel's RSA public key
+    # before sending. Leave empty in sandbox if not required.
+    airtel_sender_pin: str = ""
+    airtel_public_key_url: str = "https://openapi.airtel.africa/standard/v1/disbursements/public_key"
+
     # --- push notifications (Firebase Cloud Messaging) -------------------
     # FCM project ID and service account JSON (single-line string from Firebase console).
     # Leave empty to disable push — SMS will still be sent as a fallback.

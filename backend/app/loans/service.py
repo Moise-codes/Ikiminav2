@@ -28,7 +28,7 @@ from app.integrations.sms.templates import render
 from app.models.group import Group, Membership
 from app.models.identity import User
 from app.models.loan import Loan, LoanScheduleItem
-from app.models.contributions import Contribution, Repayment
+from app.models.ledger import Contribution, Repayment
 from app.notifications.service import NotificationService
 
 LOAN_STATUSES = (
@@ -69,9 +69,36 @@ class LoanService:
                 code="OVERDUE_LOAN",
             )
 
-        # Pot check against the group's current available balance.
+        from app.core.config import settings as _settings
+
+        # Max concurrent active loans per member.
+        active_loans = await self.db.scalar(
+            select(func.count(Loan.id)).where(
+                Loan.membership_id == borrower_membership.id,
+                Loan.status.in_(("approved", "disbursed", "overdue")),
+            )
+        )
+        if int(active_loans or 0) >= _settings.max_active_loans_per_member:
+            raise BusinessRuleViolation(
+                f"You already have {_settings.max_active_loans_per_member} "
+                "active loan(s) in this group.",
+                code="MAX_ACTIVE_LOANS",
+            )
+
+        # Minimum membership duration before borrowing.
+        if _settings.loan_min_membership_months > 0 and borrower_membership.joined_at:
+            months = (dt.date.today() - borrower_membership.joined_at.date()).days // 30
+            if months < _settings.loan_min_membership_months:
+                raise BusinessRuleViolation(
+                    f"You must be a member for at least "
+                    f"{_settings.loan_min_membership_months} month(s) "
+                    "before requesting a loan.",
+                    code="MEMBERSHIP_TOO_SHORT",
+                )
+
+        # Pot check — underfunded requests may be queued when allowed.
         available = await self._available_pot(group.id)
-        if principal_rwf > available:
+        if principal_rwf > available and not _settings.allow_underfunded_loan_requests:
             raise BusinessRuleViolation(
                 "The requested amount exceeds the group's available pot.",
                 code="POT_INSUFFICIENT",
@@ -385,20 +412,10 @@ class LoanService:
     # internals
     # ------------------------------------------------------------------
     async def _available_pot(self, group_id: uuid.UUID) -> int:
-        """Money in the pot: contributions minus loaned-out principal."""
-        contributed = await self.db.scalar(
-            select(func.coalesce(func.sum(Contribution.amount_rwf), 0)).where(
-                Contribution.group_id == group_id,
-                Contribution.type == "payment",
-            )
-        )
-        lent = await self.db.scalar(
-            select(func.coalesce(func.sum(Loan.principal_rwf), 0)).where(
-                Loan.group_id == group_id,
-                Loan.status.in_(("approved", "disbursed", "overdue")),
-            )
-        )
-        return max(int(contributed or 0) - int(lent or 0), 0)
+        """Cash available for new lending — shared canonical calculation."""
+        from app.common.pot import available_pot
+
+        return await available_pot(self.db, group_id)
 
     async def _get_membership(self, group_id: uuid.UUID, user_id: uuid.UUID):
         return await self.db.scalar(
@@ -415,8 +432,9 @@ class LoanService:
         if not user or not user.phone:
             return
         notifications = NotificationService(self.db)
-        await notifications.enqueue_sms(
-            to=user.phone,
+        await notifications.notify(
+            user_id=user.id,
+            phone=user.phone,
             template=template,
             payload={"amount": loan.principal_rwf, "group_id": str(loan.group_id)},
         )

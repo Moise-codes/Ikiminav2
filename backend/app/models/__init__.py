@@ -33,6 +33,7 @@ from app.models.ledger import (
     Repayment,
 )
 from app.models.loan import LOAN_STATUSES, Loan, LoanScheduleItem
+from app.models.payment import PaymentTransaction
 from app.models.platform import AuditLog, IdempotencyKey, OutboxMessage
 
 __all__ = [
@@ -57,6 +58,7 @@ __all__ = [
     "AuditLog",
     "IdempotencyKey",
     "OutboxMessage",
+    "PaymentTransaction",
     "ROLES",
     "FREQUENCIES",
     "GROUP_STATUSES",

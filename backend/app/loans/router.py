@@ -24,7 +24,7 @@ from app.loans.schemas import (
 from app.loans.service import LoanService
 from app.models.group import Group, Membership
 from app.models.loan import Loan, LoanScheduleItem
-from app.models.contributions import Repayment
+from app.models.ledger import Repayment
 
 router = APIRouter(prefix="/groups/{group_id}/loans", tags=["loans"])
 
