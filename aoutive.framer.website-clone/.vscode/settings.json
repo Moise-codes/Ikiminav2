@@ -1,3 +1,6 @@
 {
-    "liveServer.settings.port": 5503
+    "workbench.colorTheme": "Default Dark Modern",
+    "editor.fontFamily": "'Pateq', 'Pateq Ultra Light', monospace",
+    "editor.fontWeight": "200",
+     "editor.fontSize":   100
 }
